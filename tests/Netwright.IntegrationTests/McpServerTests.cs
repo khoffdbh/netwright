@@ -69,37 +69,35 @@ public sealed class McpServerTests(ITestOutputHelper output) : IAsyncLifetime
     public async Task Launch_snapshot_act_and_close_through_mcp()
     {
         var launched = await Call("desktop_app", new { action = "launch", path = Fixtures.ExecutablePath(FixtureKind.Wpf), args = new[] { "--no-activate" } });
-        Assert.StartsWith("Launched Netwright.Fixtures.Wpf.exe", launched.Text, StringComparison.Ordinal);
+        Assert.StartsWith("Launched Netwright.Fixtures.Wpf.exe", launched, StringComparison.Ordinal);
 
         var snapshot = await Call("desktop_snapshot");
-        Assert.Contains("#txtName", snapshot.Text, StringComparison.Ordinal);
+        Assert.Contains("#txtName", snapshot, StringComparison.Ordinal);
 
         var typed = await Call("desktop_type", new { target = "#txtName", text = "Ada" });
-        Assert.Contains("value=\"Ada\"", typed.Text, StringComparison.Ordinal);
-        Assert.True(typed.Structured.GetProperty("ok").GetBoolean());
-        Assert.True(typed.Structured.GetProperty("settled").GetBoolean());
+        Assert.Contains("value=\"Ada\"", typed, StringComparison.Ordinal);
+        Assert.DoesNotContain("UI still changing", typed, StringComparison.Ordinal);
 
         var expect = await Call("desktop_expect", new { target = "#txtName", assertion = "text", expected = "Ada" });
-        Assert.StartsWith("pass:", expect.Text, StringComparison.Ordinal);
+        Assert.StartsWith("pass:", expect, StringComparison.Ordinal);
 
         var closed = await Call("desktop_app", new { action = "close" });
-        Assert.StartsWith("Closed", closed.Text, StringComparison.Ordinal);
+        Assert.StartsWith("Closed", closed, StringComparison.Ordinal);
     }
 
     [Fact]
     public async Task Errors_are_tool_results_with_code_and_hint()
     {
         var noApp = await Call("desktop_snapshot", expectError: true);
-        Assert.StartsWith("error NO_APP:", noApp.Text, StringComparison.Ordinal);
-        Assert.Contains("hint:", noApp.Text, StringComparison.Ordinal);
-        Assert.Equal("NO_APP", noApp.Structured.GetProperty("code").GetString());
+        Assert.StartsWith("error NO_APP:", noApp, StringComparison.Ordinal);
+        Assert.Contains("hint:", noApp, StringComparison.Ordinal);
 
         await Call("desktop_app", new { action = "launch", path = Fixtures.ExecutablePath(FixtureKind.WinForms), args = new[] { "--no-activate" } });
         var badEnum = await Call("desktop_click", new { target = "#btnReset", button = "sideways" }, expectError: true);
-        Assert.Contains("INVALID_ARGUMENT", badEnum.Text, StringComparison.Ordinal);
+        Assert.Contains("INVALID_ARGUMENT", badEnum, StringComparison.Ordinal);
 
         var disabled = await Call("desktop_click", new { target = "#btnSubmit" }, expectError: true);
-        Assert.StartsWith("error NOT_ACTIONABLE:", disabled.Text, StringComparison.Ordinal);
+        Assert.StartsWith("error NOT_ACTIONABLE:", disabled, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -122,11 +120,11 @@ public sealed class McpServerTests(ITestOutputHelper output) : IAsyncLifetime
         // The app usually dies while the click waits for the UI to settle, so the report is attached
         // to the click's own response; otherwise it arrives with the next call.
         var click = await Call("desktop_click", new { target = "#btnCrash" });
-        var report = click.Text;
+        var report = click;
         if (!report.StartsWith("! Target App exited unexpectedly", StringComparison.Ordinal))
         {
             await Task.Delay(1000);
-            report = (await Call("desktop_snapshot", expectError: true)).Text;
+            report = await Call("desktop_snapshot", expectError: true);
         }
 
         output.WriteLine(report);
@@ -134,7 +132,21 @@ public sealed class McpServerTests(ITestOutputHelper output) : IAsyncLifetime
         Assert.Contains("Fixture crash requested", report, StringComparison.Ordinal);
     }
 
-    private async Task<(string Text, JsonElement Structured)> Call(string tool, object? arguments = null, bool expectError = false)
+    [Fact]
+    public async Task Results_carry_the_text_and_no_structured_content()
+    {
+        // Clients that prefer structuredContent (Claude Code) would otherwise show the Agent only that object.
+        var tools = await _client!.ListToolsAsync();
+        Assert.All(tools, t => Assert.Null(t.ProtocolTool.OutputSchema));
+
+        await Call("desktop_app", new { action = "launch", path = Fixtures.ExecutablePath(FixtureKind.Wpf), args = new[] { "--no-activate" } });
+        var result = await _client.CallToolAsync("desktop_snapshot");
+
+        Assert.Null(result.StructuredContent);
+        Assert.Contains("#txtName", Assert.Single(result.Content.OfType<TextContentBlock>()).Text, StringComparison.Ordinal);
+    }
+
+    private async Task<string> Call(string tool, object? arguments = null, bool expectError = false)
     {
         var args = arguments is null
             ? []
@@ -145,7 +157,6 @@ public sealed class McpServerTests(ITestOutputHelper output) : IAsyncLifetime
         output.WriteLine($"> {tool}: {text}");
         Assert.True(expectError == (result.IsError == true), $"{tool} returned isError={result.IsError}: {text}");
 
-        var structured = result.StructuredContent is { } element ? JsonSerializer.SerializeToElement(element) : default;
-        return (text, structured);
+        return text;
     }
 }
