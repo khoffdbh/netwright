@@ -23,7 +23,7 @@ internal static class PatternCalls
         {
             pattern = native.GetCurrentPattern(patternId);
         }
-        catch (COMException ex)
+        catch (Exception ex) when (IsUiaFailure(ex))
         {
             throw Translate(ex, node);
         }
@@ -118,7 +118,18 @@ internal static class PatternCalls
     public static string Describe(UiNode node) =>
         node.Name.Length > 0 ? $"{node.Role} \"{node.Name}\"" : node.AutomationId.Length > 0 ? $"{node.Role} {Selectors.SelectorStep.FormatAutomationId(node.AutomationId)}" : node.Role;
 
-    public static NetwrightException Translate(COMException ex, UiNode node) => ex.HResult switch
+    /// <summary>
+    /// A failed UI Automation call. COM interop turns most failure HRESULTs into a COMException, but
+    /// UIA_E_INVALIDOPERATION and UIA_E_TIMEOUT equal COR_E_INVALIDOPERATION and COR_E_TIMEOUT, which
+    /// surface as InvalidOperationException and TimeoutException instead.
+    /// </summary>
+    public static bool IsUiaFailure(Exception ex) =>
+        ex is COMException || (ex is InvalidOperationException or TimeoutException && ex.HResult is UiaInvalidOperation or UiaTimeout);
+
+    /// <summary>A UI Automation call that timed out because the Target App did not answer.</summary>
+    public static bool IsUiaTimeout(Exception ex) => IsUiaFailure(ex) && ex.HResult == UiaTimeout;
+
+    public static NetwrightException Translate(Exception ex, UiNode node) => ex.HResult switch
     {
         UiaElementNotAvailable => new NetwrightException(ErrorCodes.StaleRef, $"{Describe(node)} disappeared while acting on it.", "Take a new desktop_snapshot.", ex),
         UiaElementNotEnabled => new NetwrightException(ErrorCodes.NotActionable, $"{Describe(node)} is disabled.", "Wait until it is enabled (desktop_wait state=enabled).", ex),
@@ -135,7 +146,7 @@ internal static class PatternCalls
         {
             action();
         }
-        catch (COMException ex)
+        catch (Exception ex) when (IsUiaFailure(ex))
         {
             throw Translate(ex, node);
         }
@@ -147,7 +158,7 @@ internal static class PatternCalls
         {
             return func();
         }
-        catch (COMException ex)
+        catch (Exception ex) when (IsUiaFailure(ex))
         {
             throw Translate(ex, node);
         }

@@ -157,8 +157,7 @@ public sealed partial class DesktopSession
             if (request.Foreground)
             {
                 context.Summary = string.Create(CultureInfo.InvariantCulture, $"typed {request.Text.Length} chars into {line} with the keyboard{(request.Submit ? " and pressed Enter" : "")}");
-                PatternCalls.SetFocus(node);
-                Wait.UntilInputIsProcessed();
+                FocusForKeys(node, "Target the input itself, or click it with desktop_click foreground=true and type without clearing.");
                 if (context.Abandoned)
                 {
                     return;
@@ -299,8 +298,7 @@ public sealed partial class DesktopSession
                 context.Summary = $"pressed {keys}" + (target is null ? "" : $" in {Line(context.Node)}");
                 if (target is not null)
                 {
-                    PatternCalls.SetFocus(context.Node);
-                    Wait.UntilInputIsProcessed();
+                    FocusForKeys(context.Node, "Select or click it first (desktop_click), then press the keys without a target, or target the control that holds it (the tree, not its item).");
                 }
 
                 if (context.Abandoned)
@@ -816,6 +814,24 @@ public sealed partial class DesktopSession
         {
             // Many combo boxes close on selection by themselves.
         }
+    }
+
+    /// <summary>
+    /// Gives the element keyboard focus before real key input. An element that refuses focus through
+    /// UI Automation is reported with a hint instead of being clicked, because a click may act on it.
+    /// </summary>
+    private static void FocusForKeys(UiNode node, string hint)
+    {
+        try
+        {
+            PatternCalls.SetFocus(node);
+        }
+        catch (NetwrightException ex) when (ex.Code == ErrorCodes.NotSupported)
+        {
+            throw new NetwrightException(ErrorCodes.NotActionable, $"{PatternCalls.Describe(node)} does not accept keyboard focus.", hint, ex);
+        }
+
+        Wait.UntilInputIsProcessed();
     }
 
     private static Point ClickPoint(UiNode node)

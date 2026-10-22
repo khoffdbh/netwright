@@ -159,6 +159,8 @@ Set exactly one of:
 | `target` | focus this element first |
 | `foreground` | must be `true` |
 
+A `target` that does not accept keyboard focus (a label, or an item whose control keeps the focus itself) fails with `NOT_ACTIONABLE` instead of being clicked, because a click may act on it. Select or click it first, then press the keys without a target.
+
 ## desktop_scroll
 
 | Parameter | Description |

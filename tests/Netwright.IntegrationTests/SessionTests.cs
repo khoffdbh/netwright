@@ -278,6 +278,32 @@ public sealed partial class SessionTests(ITestOutputHelper output)
         await session.ExpectAsync("#lblMouse", new ExpectRequest { Assertion = Assertion.Text, Expected = "Mouse: double" });
     }
 
+    [Fact]
+    public async Task Targeted_key_press_on_a_tree_item_moves_the_selection()
+    {
+        await using var session = await Fixtures.LaunchAsync(FixtureKind.Wpf, "Tree");
+        await session.SetStateAsync("treeitem \"Root\"", new SetStateRequest { Expanded = true });
+        await session.SetStateAsync("treeitem \"Root\"", new SetStateRequest { Selected = true });
+
+        var pressed = await session.PressKeyAsync("treeitem \"Root\"", "Down", foreground: true);
+        output.WriteLine(pressed.Summary + Environment.NewLine + pressed.Changes.Text);
+
+        await session.ExpectAsync("#lblSelectedNode", new ExpectRequest { Assertion = Assertion.Text, Expected = "Selected: Documents" });
+    }
+
+    [Fact]
+    public async Task Targeted_key_press_on_an_element_that_cannot_take_focus_is_not_an_internal_error()
+    {
+        await using var session = await Fixtures.LaunchAsync(FixtureKind.Wpf, "Tree");
+
+        var error = await Assert.ThrowsAsync<NetwrightException>(() => session.PressKeyAsync("#lblSelectedNode", "Down", foreground: true));
+        output.WriteLine($"{error.Code}: {error.Message} | {error.Hint}");
+
+        Assert.Equal(ErrorCodes.NotActionable, error.Code);
+        Assert.Contains("does not accept keyboard focus", error.Message, StringComparison.Ordinal);
+        Assert.NotNull(error.Hint);
+    }
+
     [Theory]
     [MemberData(nameof(Kinds))]
     public async Task Windows_can_be_minimized_and_restored(FixtureKind kind)
