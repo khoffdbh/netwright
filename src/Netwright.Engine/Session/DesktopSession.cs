@@ -68,7 +68,11 @@ public sealed partial class DesktopSession : IAsyncDisposable
             {
                 // Building runs the project's MSBuild logic, so the allow list must be checked before
                 // the build, against the executable the project is expected to produce.
-                EnsureAllowed(System.IO.Path.ChangeExtension(System.IO.Path.GetFullPath(request.Project), ".exe"));
+                if (_options.AllowedApps.Count > 0)
+                {
+                    EnsureAllowed(await ProjectBuilder.ExpectedExecutableAsync(_options.DotnetExecutable, request.Project, request.Configuration, request.Framework, cancellationToken).ConfigureAwait(false));
+                }
+
                 (fileName, arguments) = await ProjectBuilder.BuildAsync(_options.DotnetExecutable, request.Project, request.Configuration, request.Framework, cancellationToken).ConfigureAwait(false);
                 if (request.Arguments.Count > 0)
                 {

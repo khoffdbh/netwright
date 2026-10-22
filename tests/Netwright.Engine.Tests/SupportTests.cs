@@ -136,6 +136,34 @@ public class ProjectBuilderTests
     }
 }
 
+public sealed class ExpectedExecutableTests : IDisposable
+{
+    private readonly string _directory = Directory.CreateTempSubdirectory("netwright-allow-").FullName;
+
+    public void Dispose() => Directory.Delete(_directory, recursive: true);
+
+    [Theory]
+    [InlineData("Acme.Client.Shell\r\n", "Acme.Client.Shell")]
+    [InlineData("\r\n  Acme.Client.Shell  \r\n\r\n", "Acme.Client.Shell")]
+    [InlineData("", null)]
+    [InlineData("error MSB1009: Project file does not exist.\r\nSwitch: C:\\x.csproj", null)]
+    public void Reads_the_evaluated_assembly_name(string output, string? expected)
+    {
+        Assert.Equal(expected, ProjectBuilder.AssemblyNameFrom(output));
+    }
+
+    [Fact]
+    public async Task Falls_back_to_the_project_file_name_when_the_sdk_cannot_evaluate()
+    {
+        var project = Path.Combine(_directory, "Client.Shell.csproj");
+        File.WriteAllText(project, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><AssemblyName>Acme.Client.Shell</AssemblyName></PropertyGroup></Project>");
+
+        var expected = await ProjectBuilder.ExpectedExecutableAsync("does-not-exist.exe", project, null, null, CancellationToken.None);
+
+        Assert.Equal(Path.Combine(_directory, "Client.Shell.exe"), expected);
+    }
+}
+
 public class CrashReporterTests
 {
     [Fact]

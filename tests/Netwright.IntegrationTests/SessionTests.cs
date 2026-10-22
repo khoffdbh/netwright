@@ -324,6 +324,33 @@ public sealed partial class SessionTests(ITestOutputHelper output)
     }
 
     [Fact]
+    [Trait("Category", "Build")]
+    public async Task Allow_list_is_checked_against_the_evaluated_assembly_name()
+    {
+        // The name comes from Directory.Build.props and a property, as in many larger solutions.
+        var directory = Directory.CreateTempSubdirectory("netwright-allow-").FullName;
+        try
+        {
+            File.WriteAllText(Path.Combine(directory, "Directory.Build.props"), "<Project><PropertyGroup><AssemblyName>Acme.$(MSBuildProjectName)</AssemblyName></PropertyGroup></Project>");
+            var project = Path.Combine(directory, "Client.Shell.csproj");
+            File.WriteAllText(project, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><OutputType>WinExe</OutputType><TargetFramework>net8.0-windows</TargetFramework></PropertyGroup></Project>");
+
+            Assert.Equal(Path.Combine(directory, "Acme.Client.Shell.exe"), await ProjectBuilder.ExpectedExecutableAsync("dotnet", project, null, null, CancellationToken.None));
+
+            // Matching only the project file name no longer passes the check, and nothing gets built.
+            await using var session = new DesktopSession(new SessionOptions { AllowedApps = ["Client.Shell*"], DotnetExecutable = "dotnet" });
+            var ex = await Assert.ThrowsAsync<NetwrightException>(() => session.LaunchAsync(new LaunchRequest { Project = project }));
+            Assert.Equal(ErrorCodes.NotAllowed, ex.Code);
+            Assert.Contains("Acme.Client.Shell.exe", ex.Message, StringComparison.Ordinal);
+            Assert.False(Directory.Exists(Path.Combine(directory, "obj")), "The project must not be restored or built before the allow list check.");
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task Attaches_to_a_running_app_by_name()
     {
         Fixtures.KillStrays();

@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
@@ -21,25 +22,87 @@ internal static partial class ProjectBuilder
         }
 
         var arguments = new StringBuilder()
-            .Append("msbuild \"").Append(fullPath).Append("\" -restore -t:Build -nologo -v:m")
-            .Append(" -p:Configuration=").Append(string.IsNullOrWhiteSpace(configuration) ? "Debug" : configuration);
-        if (!string.IsNullOrWhiteSpace(framework))
-        {
-            arguments.Append(" -p:TargetFramework=").Append(framework);
-        }
+            .Append("msbuild \"").Append(fullPath).Append("\" -restore -t:Build -nologo -v:m");
+        AppendProperties(arguments, configuration, framework);
 
         // Build servers and reusable MSBuild nodes outlive the build and inherit our pipes, which would
         // keep the output streams open (and this call waiting) for minutes after the build finished.
         arguments.Append(" -nodeReuse:false -p:UseSharedCompilation=false");
         arguments.Append(" -getProperty:TargetPath -getProperty:RunCommand -getProperty:RunArguments");
 
-        var startInfo = new ProcessStartInfo(dotnet, arguments.ToString())
+        var (exitCode, text) = await RunAsync(dotnet, arguments.ToString(), fullPath, TimeSpan.FromMinutes(10), cancellationToken).ConfigureAwait(false)
+            ?? throw new NetwrightException(ErrorCodes.BuildFailed, $"Building {Path.GetFileName(fullPath)} did not finish within 10 minutes.");
+
+        if (exitCode != 0)
+        {
+            var errors = ErrorLine().Matches(text).Select(m => m.Value.Trim()).Distinct().Take(15).ToList();
+            var detail = errors.Count > 0 ? string.Join(Environment.NewLine, errors) : Tail(text, 15);
+            throw new NetwrightException(ErrorCodes.BuildFailed, $"Build failed for {Path.GetFileName(fullPath)}:{Environment.NewLine}{detail}", "Fix the errors and launch again.");
+        }
+
+        return ResolveExecutable(text, fullPath);
+    }
+
+    /// <summary>
+    /// The executable a project is expected to produce, for the allow list check before the build. The
+    /// name is the project's evaluated <c>AssemblyName</c> (evaluation only: no restore, no targets), so
+    /// a name set in Directory.Build.props or built from properties counts too. When the evaluation
+    /// fails it falls back to the project file name; the build then reports the failure in detail.
+    /// </summary>
+    public static async Task<string> ExpectedExecutableAsync(
+        string dotnet, string projectPath, string? configuration, string? framework, CancellationToken cancellationToken)
+    {
+        var fullPath = Path.GetFullPath(projectPath);
+        var fallback = Path.ChangeExtension(fullPath, ".exe");
+        if (!File.Exists(fullPath))
+        {
+            return fallback;
+        }
+
+        var arguments = new StringBuilder().Append("msbuild \"").Append(fullPath).Append("\" -nologo -nodeReuse:false");
+        AppendProperties(arguments, configuration, framework);
+        arguments.Append(" -getProperty:AssemblyName");
+
+        try
+        {
+            var result = await RunAsync(dotnet, arguments.ToString(), fullPath, TimeSpan.FromMinutes(2), cancellationToken).ConfigureAwait(false);
+            return result is (0, var output) && AssemblyNameFrom(output) is { } name
+                ? Path.Combine(Path.GetDirectoryName(fullPath)!, name + ".exe")
+                : fallback;
+        }
+        catch (Exception ex) when (ex is Win32Exception or NetwrightException)
+        {
+            return fallback;
+        }
+    }
+
+    /// <summary>The value printed by <c>msbuild -getProperty:AssemblyName</c>; null when it is no usable file name.</summary>
+    internal static string? AssemblyNameFrom(string output)
+    {
+        var name = output.Split('\n').Select(l => l.Trim()).LastOrDefault(l => l.Length > 0);
+        return string.IsNullOrEmpty(name) || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ? null : name;
+    }
+
+    private static void AppendProperties(StringBuilder arguments, string? configuration, string? framework)
+    {
+        arguments.Append(" -p:Configuration=").Append(string.IsNullOrWhiteSpace(configuration) ? "Debug" : configuration);
+        if (!string.IsNullOrWhiteSpace(framework))
+        {
+            arguments.Append(" -p:TargetFramework=").Append(framework);
+        }
+    }
+
+    /// <summary>Runs the .NET SDK host in the project's folder; null when it did not finish in time.</summary>
+    private static async Task<(int ExitCode, string Output)?> RunAsync(
+        string dotnet, string arguments, string projectPath, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        var startInfo = new ProcessStartInfo(dotnet, arguments)
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true,
-            WorkingDirectory = Path.GetDirectoryName(fullPath)!,
+            WorkingDirectory = Path.GetDirectoryName(projectPath)!,
             StandardOutputEncoding = Encoding.UTF8,
         };
         startInfo.Environment["DOTNET_CLI_UI_LANGUAGE"] = "en";
@@ -52,34 +115,24 @@ internal static partial class ProjectBuilder
         var output = new StringBuilder();
         var pump = Task.WhenAll(Pump(process.StandardOutput, output), Pump(process.StandardError, output));
 
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromMinutes(10));
+        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(timeout);
         try
         {
-            await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+            await process.WaitForExitAsync(timeoutSource.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
             process.Kill(entireProcessTree: true);
-            throw new NetwrightException(ErrorCodes.BuildFailed, $"Building {Path.GetFileName(fullPath)} did not finish within 10 minutes.");
+            return null;
         }
 
         // Give the readers a moment to drain; never wait for grandchildren that still hold the pipes.
         await Task.WhenAny(pump, Task.Delay(2000, CancellationToken.None)).ConfigureAwait(false);
-        string text;
         lock (output)
         {
-            text = output.ToString();
+            return (process.ExitCode, output.ToString());
         }
-
-        if (process.ExitCode != 0)
-        {
-            var errors = ErrorLine().Matches(text).Select(m => m.Value.Trim()).Distinct().Take(15).ToList();
-            var detail = errors.Count > 0 ? string.Join(Environment.NewLine, errors) : Tail(text, 15);
-            throw new NetwrightException(ErrorCodes.BuildFailed, $"Build failed for {Path.GetFileName(fullPath)}:{Environment.NewLine}{detail}", "Fix the errors and launch again.");
-        }
-
-        return ResolveExecutable(text, fullPath);
     }
 
     private static async Task Pump(StreamReader reader, StringBuilder sink)
