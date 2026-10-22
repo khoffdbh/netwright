@@ -182,6 +182,8 @@ Set exactly one of:
 |---|---|
 | `target` | window or element (default: the main window) |
 | `max_size` | longest side in pixels (default 1280) |
+| `path` | also save the PNG to this file, relative to the server's `--screenshot-dir` (`.png` is added when missing, an existing file is replaced). Paths outside that directory, through a link, or with device names or `:` are refused; without the option, saving is off |
+| `image` | `false` returns only the text with the saved path, which saves the image tokens (needs `path`) |
 
 Returns PNG image content. Windows are rendered with `PrintWindow`, so the capture is correct even when other windows cover the app. Minimized windows cannot be captured; restore them first.
 

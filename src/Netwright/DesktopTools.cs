@@ -175,11 +175,30 @@ public sealed class DesktopTools(DesktopSession session)
     public Task<CallToolResult> Screenshot(
         [Description(Target)] string? target = null,
         [Description("Longest side, px")] int max_size = 1280,
+        [Description("Also save the PNG here (inside the server's screenshot dir)")] string? path = null,
+        [Description("false: return no image (needs path)")] bool image = true,
         CancellationToken cancellationToken = default) =>
         RunAsync(async () =>
         {
+            if (!image && string.IsNullOrWhiteSpace(path))
+            {
+                throw NetwrightException.InvalidArgument("image=false needs a path to save the screenshot to.");
+            }
+
+            var directory = session.Options.ScreenshotDirectory;
+            if (path is not null)
+            {
+                Engine.Capture.ScreenshotFiles.Resolve(directory, path);
+            }
+
             var shot = await session.ScreenshotAsync(target, max_size, cancellationToken);
-            return Reply.Image(shot.Summary, shot.Image.Png);
+            var text = shot.Summary;
+            if (path is not null)
+            {
+                text += Environment.NewLine + "saved: " + Engine.Capture.ScreenshotFiles.Save(directory, path, shot.Image.Png);
+            }
+
+            return image ? Reply.Image(text, shot.Image.Png) : Reply.Text(text);
         });
 
     [McpServerTool(Name = "desktop_wait", Title = "Wait", ReadOnly = true, OpenWorld = false)]
