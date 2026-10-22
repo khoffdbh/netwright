@@ -8,7 +8,7 @@ namespace Netwright.Engine.Selectors;
 /// Parses Selectors.
 /// <code>
 /// selector := step (">>" step)*
-/// step     := role? ("#" automationId)? (("~")? '"' name '"')? (":nth(" n ")")?
+/// step     := role? ("#" (automationId | '"' automationId '"'))? (("~")? '"' name '"')? (":nth(" n ")")?
 /// </code>
 /// Names match case-insensitively; <c>"x"</c> is an exact match and <c>~"x"</c> a substring match.
 /// <c>:nth(n)</c> is 1-based.
@@ -16,7 +16,7 @@ namespace Netwright.Engine.Selectors;
 public static class SelectorParser
 {
     public const string Syntax =
-        "Selector syntax: #automationId | role \"exact name\" | role ~\"partial name\" | step:nth(2) | step >> step (e.g. window \"Confirm\" >> button \"Yes\").";
+        "Selector syntax: #automationId | #\"id with spaces\" | role \"exact name\" | role ~\"partial name\" | step:nth(2) | step >> step (e.g. window \"Confirm\" >> button \"Yes\").";
 
     public static Selector Parse(string text)
     {
@@ -74,10 +74,12 @@ public static class SelectorParser
         if (!reader.AtEnd && reader.Peek == '#')
         {
             reader.Advance();
-            automationId = reader.ReadWhile(c => !char.IsWhiteSpace(c) && c != '"' && c != '~' && c != ':' && c != '>');
+            automationId = !reader.AtEnd && reader.Peek == '"'
+                ? ReadQuoted(reader, text)
+                : reader.ReadWhile(c => !EndsUnquotedAutomationId(c));
             if (automationId.Length == 0)
             {
-                throw Invalid(text, "'#' must be followed by an AutomationId");
+                throw Invalid(text, "'#' must be followed by an AutomationId (quote it when it contains spaces: #\"my id\")");
             }
         }
 
@@ -121,6 +123,9 @@ public static class SelectorParser
         return new SelectorStep(role, automationId, name, match, nth);
     }
 
+    /// <summary>A character that ends an unquoted <c>#id</c>; an id containing one must be printed quoted.</summary>
+    internal static bool EndsUnquotedAutomationId(char c) => char.IsWhiteSpace(c) || c is '"' or '~' or ':' or '>';
+
     private static string ReadQuoted(Reader reader, string text)
     {
         if (reader.AtEnd || reader.Peek != '"')
@@ -143,7 +148,7 @@ public static class SelectorParser
 
         if (reader.AtEnd)
         {
-            throw Invalid(text, "unterminated quoted name");
+            throw Invalid(text, "unterminated quoted string");
         }
 
         reader.Advance();

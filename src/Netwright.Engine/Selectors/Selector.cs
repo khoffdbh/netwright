@@ -22,7 +22,7 @@ public sealed record SelectorStep(string? Role, string? AutomationId, string? Na
 
         if (AutomationId is not null)
         {
-            sb.Append('#').Append(AutomationId);
+            sb.Append(FormatAutomationId(AutomationId));
         }
 
         if (Name is not null)
@@ -37,7 +37,7 @@ public sealed record SelectorStep(string? Role, string? AutomationId, string? Na
                 sb.Append('~');
             }
 
-            sb.Append('"').Append(Name.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal)).Append('"');
+            sb.Append(Quote(Name));
         }
 
         if (Nth is not null)
@@ -47,6 +47,21 @@ public sealed record SelectorStep(string? Role, string? AutomationId, string? Na
 
         return sb.ToString();
     }
+
+    /// <summary>
+    /// <c>#id</c>, or <c>#"id"</c> when the id contains a character that would end it, such as a space
+    /// (<c>Item 3</c>, or DevExpress ids like <c>Clear Filter Button</c>), so a printed id parses back.
+    /// </summary>
+    public static string FormatAutomationId(string automationId)
+    {
+        ArgumentNullException.ThrowIfNull(automationId);
+        return automationId.Length > 0 && !automationId.Any(SelectorParser.EndsUnquotedAutomationId)
+            ? "#" + automationId
+            : "#" + Quote(automationId);
+    }
+
+    internal static string Quote(string text) =>
+        "\"" + text.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal) + "\"";
 }
 
 /// <summary>

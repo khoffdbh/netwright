@@ -116,7 +116,7 @@ internal static class PatternCalls
     }
 
     public static string Describe(UiNode node) =>
-        node.Name.Length > 0 ? $"{node.Role} \"{node.Name}\"" : node.AutomationId.Length > 0 ? $"{node.Role} #{node.AutomationId}" : node.Role;
+        node.Name.Length > 0 ? $"{node.Role} \"{node.Name}\"" : node.AutomationId.Length > 0 ? $"{node.Role} {Selectors.SelectorStep.FormatAutomationId(node.AutomationId)}" : node.Role;
 
     public static NetwrightException Translate(COMException ex, UiNode node) => ex.HResult switch
     {
