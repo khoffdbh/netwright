@@ -157,7 +157,7 @@ public sealed partial class DesktopSession
             if (request.Foreground)
             {
                 context.Summary = string.Create(CultureInfo.InvariantCulture, $"typed {request.Text.Length} chars into {line} with the keyboard{(request.Submit ? " and pressed Enter" : "")}");
-                FocusForKeys(node, "Target the input itself, or click it with desktop_click foreground=true and type without clearing.");
+                FocusForKeys(node, "Target the text field itself (desktop_find textbox), or leave foreground off if desktop_inspect lists the Value pattern.");
                 if (context.Abandoned)
                 {
                     return;
@@ -298,7 +298,7 @@ public sealed partial class DesktopSession
                 context.Summary = $"pressed {keys}" + (target is null ? "" : $" in {Line(context.Node)}");
                 if (target is not null)
                 {
-                    FocusForKeys(context.Node, "Select or click it first (desktop_click), then press the keys without a target, or target the control that holds it (the tree, not its item).");
+                    FocusForKeys(context.Node, "Target the element that should receive the keys, or click or select it first (desktop_click, desktop_set_state) and press the keys without a target.");
                 }
 
                 if (context.Abandoned)
