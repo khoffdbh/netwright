@@ -12,6 +12,11 @@ namespace Netwright.Engine.Session;
 /// </summary>
 internal static partial class ProjectBuilder
 {
+    // MSBuild reads Directory.Build.rsp from the project folder and its parents on its own, and a
+    // response file can add any switch (targets, loggers, properties). The evaluation runs before the
+    // allow list check, so neither run takes switches from the project's folders.
+    private const string NoAutoResponse = "-noAutoResponse";
+
     public static async Task<(string FileName, string Arguments)> BuildAsync(
         string dotnet, string projectPath, string? configuration, string? framework, CancellationToken cancellationToken)
     {
@@ -21,7 +26,7 @@ internal static partial class ProjectBuilder
             throw new NetwrightException(ErrorCodes.LaunchFailed, $"Project not found: {fullPath}", "Pass the path of a .csproj, .vbproj or .fsproj file.");
         }
 
-        List<string> arguments = ["msbuild", fullPath, "-restore", "-t:Build", "-nologo", "-v:m"];
+        List<string> arguments = ["msbuild", fullPath, "-restore", "-t:Build", "-nologo", "-v:m", NoAutoResponse];
         AppendProperties(arguments, configuration, framework);
 
         // Build servers and reusable MSBuild nodes outlive the build and inherit our pipes, which would
@@ -58,7 +63,7 @@ internal static partial class ProjectBuilder
             return fallback;
         }
 
-        List<string> arguments = ["msbuild", fullPath, "-nologo", "-nodeReuse:false"];
+        List<string> arguments = ["msbuild", fullPath, "-nologo", "-nodeReuse:false", NoAutoResponse];
         AppendProperties(arguments, configuration, framework);
         arguments.Add("-getProperty:AssemblyName");
 

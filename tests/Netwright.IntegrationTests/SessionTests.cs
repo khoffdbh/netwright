@@ -335,6 +335,9 @@ public sealed partial class SessionTests(ITestOutputHelper output)
             var project = Path.Combine(directory, "Client.Shell.csproj");
             File.WriteAllText(project, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><OutputType>WinExe</OutputType><TargetFramework>net8.0-windows</TargetFramework></PropertyGroup></Project>");
 
+            // A response file next to the project would turn the name into an allowed one; it must not be read.
+            File.WriteAllText(Path.Combine(directory, "Directory.Build.rsp"), "-p:AssemblyName=Client.Shell");
+
             Assert.Equal(Path.Combine(directory, "Acme.Client.Shell.exe"), await ProjectBuilder.ExpectedExecutableAsync("dotnet", project, null, null, CancellationToken.None));
 
             // Matching only the project file name no longer passes the check, and nothing gets built.
