@@ -5,6 +5,7 @@ using System.Text;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using Netwright.Engine;
+using Netwright.Engine.Capture;
 using Netwright.Engine.Session;
 
 namespace Netwright;
@@ -188,14 +189,14 @@ public sealed class DesktopTools(DesktopSession session)
             var directory = session.Options.ScreenshotDirectory;
             if (path is not null)
             {
-                Engine.Capture.ScreenshotFiles.Resolve(directory, path);
+                ScreenshotFiles.Resolve(directory, path);
             }
 
             var shot = await session.ScreenshotAsync(target, max_size, cancellationToken);
             var text = shot.Summary;
             if (path is not null)
             {
-                text += Environment.NewLine + "saved: " + Engine.Capture.ScreenshotFiles.Save(directory, path, shot.Image.Png);
+                text += Environment.NewLine + "saved: " + ScreenshotFiles.Save(directory, path, shot.Image.Png);
             }
 
             return image ? Reply.Image(text, shot.Image.Png) : Reply.Text(text);
