@@ -38,7 +38,7 @@ Attributes: `disabled`, `focused`, `modal`, `minimized`, `checked`/`unchecked`/`
 | Selector | Matches |
 |---|---|
 | `#btnSave` | AutomationId `btnSave` |
-| `#"Item 3"` | AutomationId `Item 3`: quote an id that contains a space, `"`, `~`, `:` or `>` (escape `"` and `\` inside with `\`). Snapshots and stable Selectors print such ids quoted |
+| `#"Item 3"` | AutomationId `Item 3`: quote an id that contains a space, `"`, `~`, `:` or `>` (escape `"` and `\` inside with `\`; `\n` and `\r` are line breaks, in names too). Snapshots and stable Selectors print such ids quoted |
 | `button "Save"` | a button named exactly "Save" |
 | `textbox ~"mail"` | a text box whose name contains "mail" |
 | `button#btnSave` | both conditions |

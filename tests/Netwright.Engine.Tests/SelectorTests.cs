@@ -55,6 +55,8 @@ public class SelectorParserTests
     [InlineData("#\"Clear Filter Button\"", "Clear Filter Button")]
     [InlineData("button#\"a \\\"b\\\" c\\\\d\"", "a \"b\" c\\d")]
     [InlineData("#\"x:y>z\" >> button", "x:y>z")]
+    [InlineData("#\"Save\\r\\nButton\"", "Save\r\nButton")]
+    [InlineData("#\"not\\\\n a break\"", "not\\n a break")]
     public void Parses_quoted_automation_ids(string text, string expected)
     {
         var step = SelectorParser.Parse(text).Steps[0];
@@ -70,6 +72,8 @@ public class SelectorParserTests
     [InlineData("Item 3", "#\"Item 3\"")]
     [InlineData("a\"b", "#\"a\\\"b\"")]
     [InlineData("C:\\temp", "#\"C:\\\\temp\"")]
+    [InlineData("line\nbreak", "#\"line\\nbreak\"")]
+    [InlineData("cr\r\nlf", "#\"cr\\r\\nlf\"")]
     public void Prints_automation_ids_that_parse_back(string id, string printed)
     {
         Assert.Equal(printed, SelectorStep.FormatAutomationId(id));
@@ -86,6 +90,8 @@ public class SelectorParserTests
     [InlineData("Item 3")]
     [InlineData("tab\there")]
     [InlineData("line\nbreak")]
+    [InlineData("cr\r\nlf")]
+    [InlineData("literal\\n")]
     [InlineData("a>>b")]
     [InlineData("~tilde")]
     [InlineData("x:nth(2)")]

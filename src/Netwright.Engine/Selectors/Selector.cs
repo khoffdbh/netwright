@@ -61,8 +61,15 @@ public sealed record SelectorStep(string? Role, string? AutomationId, string? Na
             : "#" + Quote(automationId);
     }
 
+    /// <summary>
+    /// <c>"text"</c> with <c>\</c> and <c>"</c> escaped, and line breaks as <c>\n</c> and <c>\r</c> so the
+    /// Selector stays on one Snapshot line. <see cref="SelectorParser"/> reads all four back.
+    /// </summary>
     internal static string Quote(string text) =>
-        "\"" + text.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal) + "\"";
+        "\"" + text.Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("\"", "\\\"", StringComparison.Ordinal)
+            .Replace("\n", "\\n", StringComparison.Ordinal)
+            .Replace("\r", "\\r", StringComparison.Ordinal) + "\"";
 }
 
 /// <summary>
