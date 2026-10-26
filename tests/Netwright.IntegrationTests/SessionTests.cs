@@ -278,6 +278,9 @@ public sealed partial class SessionTests(ITestOutputHelper output)
         await session.ExpectAsync("#lblMouse", new ExpectRequest { Assertion = Assertion.Text, Expected = "Mouse: double" });
     }
 
+    // WPF only, like the next test. WinForms providers accept UIA SetFocus on tree items and labels without
+    // moving focus or failing (AccessibleObject.SetFocus is empty and TreeNode/Label do not override it), so
+    // the keys go to whichever control has focus and there is no refusal to report.
     [Fact]
     public async Task Targeted_key_press_on_a_tree_item_moves_the_selection()
     {
