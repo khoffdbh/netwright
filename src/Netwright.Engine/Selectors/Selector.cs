@@ -52,7 +52,7 @@ public sealed record SelectorStep(string? Role, string? AutomationId, string? Na
     /// <c>#id</c>, or <c>#"id"</c> when the id contains a character that would end it, such as a space
     /// (<c>Item 3</c>, or DevExpress ids like <c>Clear Filter Button</c>), so a printed id parses back.
     /// </summary>
-    public static string FormatAutomationId(string automationId)
+    internal static string FormatAutomationId(string automationId)
     {
         ArgumentNullException.ThrowIfNull(automationId);
         return automationId.Length > 0 && !automationId.Any(SelectorParser.EndsUnquotedAutomationId)
