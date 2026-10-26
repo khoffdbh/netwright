@@ -64,6 +64,9 @@ public sealed class McpServerTests(ITestOutputHelper output) : IAsyncLifetime
         Assert.True(snapshot.Annotations?.ReadOnlyHint);
         var click = tools.Single(t => t.ProtocolTool.Name == "desktop_click").ProtocolTool;
         Assert.NotEqual(true, click.Annotations?.ReadOnlyHint);
+        var screenshot = tools.Single(t => t.ProtocolTool.Name == "desktop_screenshot").ProtocolTool;
+        Assert.NotEqual(true, screenshot.Annotations?.ReadOnlyHint);
+        Assert.True(screenshot.Annotations?.DestructiveHint);
         Assert.False(string.IsNullOrWhiteSpace(_client.ServerInstructions));
     }
 

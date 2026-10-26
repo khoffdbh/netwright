@@ -170,7 +170,7 @@ public sealed class DesktopTools(DesktopSession session)
                 : Reply.Action(await session.WindowAsync(target, parsed, foreground, cancellationToken));
         });
 
-    [McpServerTool(Name = "desktop_screenshot", Title = "Screenshot", ReadOnly = true, OpenWorld = false)]
+    [McpServerTool(Name = "desktop_screenshot", Title = "Screenshot", Destructive = true, OpenWorld = false)]
     [Description("Image of a window or element (default: main window), even when covered by other windows.")]
     public Task<CallToolResult> Screenshot(
         [Description(Target)] string? target = null,
