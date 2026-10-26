@@ -224,6 +224,28 @@ public class SnapshotRendererTests
     }
 
     [Fact]
+    public void Collapsed_layout_panes_do_not_add_a_level()
+    {
+        UiNode Build() => Window("Main", Pane(Pane(Button("Save"), Node(ControlTypeIds.Group, "Details", children: [Button("Edit")]))));
+
+        var filtered = Renderer(new SnapshotOptions { MaxDepth = 1 }).Render([Build()]).Text;
+        var full = Renderer(new SnapshotOptions { Full = true, MaxDepth = 1 }).Render([Build()]).Text;
+
+        Assert.Equal(
+            """
+            - window "Main" [e1]
+              - button "Save" [e2]
+              - group "Details" [e3]
+                - ... 1 more element below (root=e3)
+            """.ReplaceLineEndings(),
+            filtered.ReplaceLineEndings());
+
+        // A full Snapshot shows the panes, so they are levels there.
+        Assert.Contains("... 4 more elements below (root=e2)", full, StringComparison.Ordinal);
+        Assert.DoesNotContain("Save", full, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void A_negative_depth_is_an_invalid_argument()
     {
         var ex = Assert.Throws<NetwrightException>(() => Renderer(new SnapshotOptions { MaxDepth = -1 }).Render([Window("Main")]));
