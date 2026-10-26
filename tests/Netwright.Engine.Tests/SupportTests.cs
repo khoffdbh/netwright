@@ -162,6 +162,47 @@ public sealed class ExpectedExecutableTests : IDisposable
 
         Assert.Equal(Path.Combine(_directory, "Client.Shell.exe"), expected);
     }
+
+    [Theory]
+    [InlineData("net8.0 -t:Evil")]
+    [InlineData("-t:Evil")]
+    [InlineData("-p:AssemblyName=Allowed")]
+    [InlineData("@evil.rsp")]
+    [InlineData("net8.0;AssemblyName=Allowed")]
+    [InlineData("net8.0\"")]
+    [InlineData("net8.0\n")]
+    public async Task Refuses_framework_and_configuration_values_that_are_no_plain_name(string value)
+    {
+        var project = Path.Combine(_directory, "Client.Shell.csproj");
+        File.WriteAllText(project, "<Project />");
+
+        // The check runs before any process starts, so the SDK path does not matter.
+        foreach (var run in new Func<Task>[]
+        {
+            () => ProjectBuilder.ExpectedExecutableAsync("does-not-exist.exe", project, null, value, CancellationToken.None),
+            () => ProjectBuilder.ExpectedExecutableAsync("does-not-exist.exe", project, value, null, CancellationToken.None),
+            () => ProjectBuilder.BuildAsync("does-not-exist.exe", project, null, value, CancellationToken.None),
+            () => ProjectBuilder.BuildAsync("does-not-exist.exe", project, value, null, CancellationToken.None),
+        })
+        {
+            var ex = await Assert.ThrowsAsync<NetwrightException>(run);
+            Assert.Equal(ErrorCodes.InvalidArgument, ex.Code);
+            Assert.NotNull(ex.Hint);
+        }
+    }
+
+    [Theory]
+    [InlineData("Release", "net8.0-windows")]
+    [InlineData("Debug_x64", "net8.0-windows10.0.19041.0")]
+    public async Task Accepts_usual_configuration_and_framework_names(string configuration, string framework)
+    {
+        var project = Path.Combine(_directory, "Client.Shell.csproj");
+        File.WriteAllText(project, "<Project />");
+
+        var expected = await ProjectBuilder.ExpectedExecutableAsync("does-not-exist.exe", project, configuration, framework, CancellationToken.None);
+
+        Assert.Equal(Path.Combine(_directory, "Client.Shell.exe"), expected);
+    }
 }
 
 public class CrashReporterTests

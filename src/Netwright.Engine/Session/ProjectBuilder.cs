@@ -21,16 +21,15 @@ internal static partial class ProjectBuilder
             throw new NetwrightException(ErrorCodes.LaunchFailed, $"Project not found: {fullPath}", "Pass the path of a .csproj, .vbproj or .fsproj file.");
         }
 
-        var arguments = new StringBuilder()
-            .Append("msbuild \"").Append(fullPath).Append("\" -restore -t:Build -nologo -v:m");
+        List<string> arguments = ["msbuild", fullPath, "-restore", "-t:Build", "-nologo", "-v:m"];
         AppendProperties(arguments, configuration, framework);
 
         // Build servers and reusable MSBuild nodes outlive the build and inherit our pipes, which would
         // keep the output streams open (and this call waiting) for minutes after the build finished.
-        arguments.Append(" -nodeReuse:false -p:UseSharedCompilation=false");
-        arguments.Append(" -getProperty:TargetPath -getProperty:RunCommand -getProperty:RunArguments");
+        arguments.AddRange(["-nodeReuse:false", "-p:UseSharedCompilation=false"]);
+        arguments.AddRange(["-getProperty:TargetPath", "-getProperty:RunCommand", "-getProperty:RunArguments"]);
 
-        var (exitCode, text) = await RunAsync(dotnet, arguments.ToString(), fullPath, TimeSpan.FromMinutes(10), cancellationToken).ConfigureAwait(false)
+        var (exitCode, text) = await RunAsync(dotnet, arguments, fullPath, TimeSpan.FromMinutes(10), cancellationToken).ConfigureAwait(false)
             ?? throw new NetwrightException(ErrorCodes.BuildFailed, $"Building {Path.GetFileName(fullPath)} did not finish within 10 minutes.");
 
         if (exitCode != 0)
@@ -59,13 +58,13 @@ internal static partial class ProjectBuilder
             return fallback;
         }
 
-        var arguments = new StringBuilder().Append("msbuild \"").Append(fullPath).Append("\" -nologo -nodeReuse:false");
+        List<string> arguments = ["msbuild", fullPath, "-nologo", "-nodeReuse:false"];
         AppendProperties(arguments, configuration, framework);
-        arguments.Append(" -getProperty:AssemblyName");
+        arguments.Add("-getProperty:AssemblyName");
 
         try
         {
-            var result = await RunAsync(dotnet, arguments.ToString(), fullPath, TimeSpan.FromMinutes(2), cancellationToken).ConfigureAwait(false);
+            var result = await RunAsync(dotnet, arguments, fullPath, TimeSpan.FromMinutes(2), cancellationToken).ConfigureAwait(false);
             return result is (0, var output) && AssemblyNameFrom(output) is { } name
                 ? Path.Combine(Path.GetDirectoryName(fullPath)!, name + ".exe")
                 : fallback;
@@ -83,18 +82,30 @@ internal static partial class ProjectBuilder
         return string.IsNullOrEmpty(name) || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ? null : name;
     }
 
-    private static void AppendProperties(StringBuilder arguments, string? configuration, string? framework)
+    /// <summary>
+    /// Adds Configuration and TargetFramework. Both come from the Agent and reach a run that precedes the
+    /// allow list check, so anything but a plain name is refused: a space, <c>;</c>, a leading <c>-</c>
+    /// or an <c>@</c> could otherwise add MSBuild switches, properties or response files.
+    /// </summary>
+    private static void AppendProperties(List<string> arguments, string? configuration, string? framework)
     {
-        arguments.Append(" -p:Configuration=").Append(string.IsNullOrWhiteSpace(configuration) ? "Debug" : configuration);
+        arguments.Add("-p:Configuration=" + (string.IsNullOrWhiteSpace(configuration) ? "Debug" : PlainName("configuration", configuration, "Debug or Release")));
         if (!string.IsNullOrWhiteSpace(framework))
         {
-            arguments.Append(" -p:TargetFramework=").Append(framework);
+            arguments.Add("-p:TargetFramework=" + PlainName("framework", framework, "net8.0-windows"));
         }
     }
 
+    private static string PlainName(string parameter, string value, string example) =>
+        PlainNameValue().IsMatch(value)
+            ? value
+            : throw NetwrightException.InvalidArgument(
+                $"Invalid {parameter} '{value}'.",
+                $"Pass a plain name of letters, digits, '.', '_' and '-' that starts with a letter or digit, e.g. {example}.");
+
     /// <summary>Runs the .NET SDK host in the project's folder; null when it did not finish in time.</summary>
     private static async Task<(int ExitCode, string Output)?> RunAsync(
-        string dotnet, string arguments, string projectPath, TimeSpan timeout, CancellationToken cancellationToken)
+        string dotnet, IEnumerable<string> arguments, string projectPath, TimeSpan timeout, CancellationToken cancellationToken)
     {
         var startInfo = new ProcessStartInfo(dotnet, arguments)
         {
@@ -189,4 +200,7 @@ internal static partial class ProjectBuilder
 
     [GeneratedRegex(@"[^\r\n]*: error [A-Z]+\d+:[^\r\n]*")]
     private static partial Regex ErrorLine();
+
+    [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9._-]*\z")]
+    private static partial Regex PlainNameValue();
 }
