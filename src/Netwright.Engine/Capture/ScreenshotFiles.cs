@@ -11,6 +11,9 @@ public static class ScreenshotFiles
         "CON", "PRN", "AUX", "NUL",
         "COM0", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
         "LPT0", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+
+        // Windows also reserves COM and LPT with the superscript digits ¹ ² ³.
+        "COM¹", "COM²", "COM³", "LPT¹", "LPT²", "LPT³",
     };
 
     /// <summary>Resolves <paramref name="path"/> (relative to <paramref name="directory"/>, or absolute inside it) to a full .png path.</summary>

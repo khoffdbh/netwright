@@ -36,6 +36,8 @@ public sealed class ScreenshotFilesTests : IDisposable
     [InlineData("con.png")]
     [InlineData("sub\\COM1.png")]
     [InlineData("aux\\shot.png")]
+    [InlineData("COM¹.png")]
+    [InlineData("sub\\lpt³")]
     public void Refuses_paths_outside_the_directory_or_that_are_no_plain_file(string path)
     {
         Assert.Equal(ErrorCodes.InvalidArgument, Assert.Throws<NetwrightException>(() => ScreenshotFiles.Resolve(_directory, path)).Code);
