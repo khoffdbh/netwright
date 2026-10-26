@@ -409,8 +409,9 @@ public sealed class SnapshotRenderer(RefRegistry refs, SnapshotOptions options)
         return cell.Descendants().FirstOrDefault(d => d.Name.Length > 0)?.Name ?? "";
     }
 
+    /// <summary>Elements the current view would show: every one in a full Snapshot, the reportable ones otherwise.</summary>
     private int CountVisible(UiNode node) =>
-        node.DescendantsAndSelf().Count(n => (options.IncludeOffscreen || !n.IsOffscreen) && IsReportable(n));
+        node.DescendantsAndSelf().Count(n => (options.IncludeOffscreen || !n.IsOffscreen) && (options.Full || IsReportable(n)));
 
     private static void Indent(StringBuilder sb, int depth) => sb.Append(' ', depth * 2);
 

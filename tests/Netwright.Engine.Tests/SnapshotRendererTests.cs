@@ -188,6 +188,17 @@ public class SnapshotRendererTests
     }
 
     [Fact]
+    public void Full_mode_counts_every_element_past_the_line_budget()
+    {
+        var window = Window("Main", Button("Go"), Pane(Node(ControlTypeIds.Image), Node(ControlTypeIds.Image)));
+
+        var result = Renderer(new SnapshotOptions { Full = true, MaxLines = 2 }).Render([window]);
+
+        // The pane and both unnamed images are lines in a full Snapshot, so all three count.
+        Assert.Contains("3 more elements not shown", result.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Escapes_quotes_and_newlines_and_masks_passwords()
     {
         var password = new UiNode { Key = "pw", ControlTypeId = ControlTypeIds.Edit, Role = "textbox", Name = "Password", Patterns = UiPatterns.Value, Value = "secret", IsPassword = true };
