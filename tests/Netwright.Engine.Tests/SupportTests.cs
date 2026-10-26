@@ -228,4 +228,18 @@ public class PatternCallsTests
         Assert.False(PatternCalls.IsUiaTimeout(new InvalidOperationException()));
         Assert.False(PatternCalls.IsUiaTimeout(new System.Runtime.InteropServices.COMException()));
     }
+
+    [Fact]
+    public void Only_known_focus_refusals_count_as_refusing_keyboard_focus()
+    {
+        // FocusForKeys turns these into NOT_ACTIONABLE; an unknown HRESULT such as E_FAIL stays NOT_SUPPORTED.
+        var node = Button("Root");
+        var uiaNotSupported = new System.Runtime.InteropServices.COMException("not supported", unchecked((int)0x80040204));
+
+        Assert.True(PatternCalls.IsFocusRefusal(PatternCalls.Translate(new InvalidOperationException(), node)));
+        Assert.True(PatternCalls.IsFocusRefusal(PatternCalls.Translate(uiaNotSupported, node)));
+        Assert.False(PatternCalls.IsFocusRefusal(PatternCalls.Translate(new System.Runtime.InteropServices.COMException(), node)));
+        Assert.False(PatternCalls.IsFocusRefusal(PatternCalls.Translate(new TimeoutException(), node)));
+        Assert.False(PatternCalls.IsFocusRefusal(new NetwrightException(ErrorCodes.NotSupported, "no inner exception")));
+    }
 }

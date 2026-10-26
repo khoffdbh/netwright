@@ -129,6 +129,13 @@ internal static class PatternCalls
     /// <summary>A UI Automation call that timed out because the Target App did not answer.</summary>
     public static bool IsUiaTimeout(Exception ex) => IsUiaFailure(ex) && ex.HResult == UiaTimeout;
 
+    /// <summary>
+    /// A translated SetFocus failure that means the element refuses keyboard focus: WPF raises
+    /// UIA_E_INVALIDOPERATION when the element cannot take focus, and UIA_E_NOTSUPPORTED says so directly.
+    /// Any other HRESULT (E_FAIL, for one) is a UI Automation failure, not a refusal.
+    /// </summary>
+    public static bool IsFocusRefusal(NetwrightException ex) => ex.InnerException?.HResult is UiaInvalidOperation or UiaNotSupported;
+
     public static NetwrightException Translate(Exception ex, UiNode node) => ex.HResult switch
     {
         UiaElementNotAvailable => new NetwrightException(ErrorCodes.StaleRef, $"{Describe(node)} disappeared while acting on it.", "Take a new desktop_snapshot.", ex),

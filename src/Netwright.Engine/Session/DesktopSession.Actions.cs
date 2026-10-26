@@ -826,7 +826,7 @@ public sealed partial class DesktopSession
         {
             PatternCalls.SetFocus(node);
         }
-        catch (NetwrightException ex) when (ex.Code == ErrorCodes.NotSupported)
+        catch (NetwrightException ex) when (PatternCalls.IsFocusRefusal(ex))
         {
             throw new NetwrightException(ErrorCodes.NotActionable, $"{PatternCalls.Describe(node)} does not accept keyboard focus.", hint, ex);
         }
