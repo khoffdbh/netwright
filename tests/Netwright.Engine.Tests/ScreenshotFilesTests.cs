@@ -80,7 +80,7 @@ public sealed class ScreenshotFilesTests : IDisposable
     }
 
     [Fact]
-    public void Leaves_no_temporary_file_behind_when_saving_fails()
+    public void A_failed_save_says_what_to_do_and_leaves_no_temporary_file()
     {
         var taken = Path.Combine(_directory, "run", "taken.png");
         Directory.CreateDirectory(taken);
@@ -88,6 +88,7 @@ public sealed class ScreenshotFilesTests : IDisposable
         var error = Assert.Throws<NetwrightException>(() => ScreenshotFiles.Save(_directory, "run/taken.png", [1]));
 
         Assert.Equal(ErrorCodes.InvalidArgument, error.Code);
+        Assert.Contains("another path", error.Hint, StringComparison.Ordinal);
         Assert.Equal([taken], Directory.EnumerateFileSystemEntries(Path.GetDirectoryName(taken)!));
     }
 

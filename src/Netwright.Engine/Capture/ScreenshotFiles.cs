@@ -84,7 +84,11 @@ public static class ScreenshotFiles
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             DeleteQuietly(temp);
-            throw new NetwrightException(ErrorCodes.InvalidArgument, $"Could not save the screenshot to {full}: {ex.Message}", null, ex);
+            throw new NetwrightException(
+                ErrorCodes.InvalidArgument,
+                $"Could not save the screenshot to {full}: {ex.Message}",
+                "Pass another path, or ask the User to check the screenshot directory.",
+                ex);
         }
 
         return full;
