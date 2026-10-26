@@ -204,6 +204,22 @@ public sealed partial class SessionTests(ITestOutputHelper output)
         Assert.Contains("more items", snapshot, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task A_depth_limited_full_snapshot_can_be_explored_top_down()
+    {
+        await using var session = await Fixtures.LaunchAsync(FixtureKind.Wpf, "Grid");
+        var options = new Engine.Snapshots.SnapshotOptions { Full = true, MaxDepth = 1, MaxLines = 2000, MaxItemsPerContainer = int.MaxValue };
+
+        var top = (await session.SnapshotAsync(null, options)).Text;
+        output.WriteLine(top);
+        var cut = Regex.Match(top, @"\.\.\. (?<n>\d+) more elements? below \(root=(?<ref>e\d+)\)");
+        Assert.True(cut.Success, top);
+        Assert.True(top.Split('\n').Length < 40, "depth=1 should keep the first read short");
+
+        var deeper = (await session.SnapshotAsync(cut.Groups["ref"].Value, options)).Text;
+        Assert.NotEqual(top, deeper);
+    }
+
     [Theory]
     [MemberData(nameof(Kinds))]
     public async Task Screenshots_render_the_window(FixtureKind kind)
