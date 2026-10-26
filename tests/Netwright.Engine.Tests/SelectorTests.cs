@@ -76,6 +76,12 @@ public class SelectorParserTests
         Assert.Equal(id, SelectorParser.Parse(printed).Steps[0].AutomationId);
     }
 
+    [Fact]
+    public void An_empty_automation_id_cannot_be_printed()
+    {
+        Assert.Throws<ArgumentException>(() => SelectorStep.FormatAutomationId(""));
+    }
+
     [Theory]
     [InlineData("Item 3")]
     [InlineData("tab\there")]
