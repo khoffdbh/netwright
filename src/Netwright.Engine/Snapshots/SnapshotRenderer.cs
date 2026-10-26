@@ -255,7 +255,7 @@ public sealed class SnapshotRenderer(RefRegistry refs, SnapshotOptions options)
         if (node.AutomationId.Length > 0 && !string.Equals(node.AutomationId, node.Name, StringComparison.Ordinal) &&
             node.ControlTypeId is not (ControlTypeIds.ListItem or ControlTypeIds.DataItem or ControlTypeIds.TreeItem))
         {
-            sb.Append(" #").Append(node.AutomationId);
+            sb.Append(' ').Append(Selectors.SelectorStep.FormatAutomationId(node.AutomationId));
         }
 
         if (!attributes)

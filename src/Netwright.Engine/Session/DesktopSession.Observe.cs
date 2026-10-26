@@ -92,7 +92,7 @@ public sealed partial class DesktopSession
             return Task.FromResult(sb.ToString());
 
             static string Show(string value) => value.Length == 0 ? "-" : value;
-            string Short(UiNode n) => n.Name.Length > 0 ? $"{n.Role} \"{Truncate(n.Name, 30)}\"" : n.AutomationId.Length > 0 ? $"{n.Role} #{n.AutomationId}" : n.Role;
+            string Short(UiNode n) => n.Name.Length > 0 ? $"{n.Role} \"{Truncate(n.Name, 30)}\"" : n.AutomationId.Length > 0 ? $"{n.Role} {SelectorStep.FormatAutomationId(n.AutomationId)}" : n.Role;
         }, cancellationToken);
 
     public Task<ScreenshotOutcome> ScreenshotAsync(string? target = null, int maxSize = 1280, CancellationToken cancellationToken = default) =>

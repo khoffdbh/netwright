@@ -104,6 +104,16 @@ public class SnapshotRendererTests
     }
 
     [Fact]
+    public void Quotes_automation_ids_with_spaces_so_they_work_as_selectors()
+    {
+        var window = Window("Main", Node(ControlTypeIds.Button, "Clear Filter", "Clear Filter Button", UiPatterns.Invoke));
+
+        var text = Renderer().Render([window]).Text;
+
+        Assert.Contains("button \"Clear Filter\" [e2] #\"Clear Filter Button\"", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Hides_the_parts_of_composite_controls()
     {
         var slider = Node(ControlTypeIds.Slider, "Quantity", patterns: UiPatterns.RangeValue, children: [Node(ControlTypeIds.Button, "", "IncreaseLarge", UiPatterns.Invoke)]);

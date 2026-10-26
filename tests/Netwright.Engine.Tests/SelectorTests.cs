@@ -1,3 +1,4 @@
+using Netwright.Engine.Model;
 using Netwright.Engine.Selectors;
 using Netwright.Engine.Uia;
 using static Netwright.Engine.Tests.TestTree;
@@ -51,8 +52,58 @@ public class SelectorParserTests
     }
 
     [Theory]
+    [InlineData("#\"Clear Filter Button\"", "Clear Filter Button")]
+    [InlineData("button#\"a \\\"b\\\" c\\\\d\"", "a \"b\" c\\d")]
+    [InlineData("#\"x:y>z\" >> button", "x:y>z")]
+    public void Parses_quoted_automation_ids(string text, string expected)
+    {
+        var step = SelectorParser.Parse(text).Steps[0];
+
+        Assert.Equal(expected, step.AutomationId);
+        Assert.Equal(step, SelectorParser.Parse(step.ToString()).Steps[0]);
+    }
+
+    [Theory]
+    [InlineData("btnSave", "#btnSave")]
+    [InlineData("Button.Yes", "#Button.Yes")]
+    [InlineData("back\\slash", "#back\\slash")]
+    [InlineData("Item 3", "#\"Item 3\"")]
+    [InlineData("a\"b", "#\"a\\\"b\"")]
+    [InlineData("C:\\temp", "#\"C:\\\\temp\"")]
+    public void Prints_automation_ids_that_parse_back(string id, string printed)
+    {
+        Assert.Equal(printed, SelectorStep.FormatAutomationId(id));
+        Assert.Equal(id, SelectorParser.Parse(printed).Steps[0].AutomationId);
+    }
+
+    [Theory]
+    [InlineData("Item 3")]
+    [InlineData("tab\there")]
+    [InlineData("line\nbreak")]
+    [InlineData("a>>b")]
+    [InlineData("~tilde")]
+    [InlineData("x:nth(2)")]
+    [InlineData("quote\"inside")]
+    [InlineData("trailing\\")]
+    [InlineData("\\\"")]
+    [InlineData("Ünïcødé id")]
+    public void Selectors_with_awkward_automation_ids_round_trip(string id)
+    {
+        var selector = new Selector([
+            new SelectorStep("window", null, "Main", NameMatch.Exact, null),
+            new SelectorStep("button", id, "Save \"now\"", NameMatch.Contains, 2),
+        ]);
+
+        var parsed = SelectorParser.Parse(selector.ToString());
+
+        Assert.Equal(selector.Steps, parsed.Steps);
+    }
+
+    [Theory]
     [InlineData("")]
     [InlineData("   ")]
+    [InlineData("#\"\"")]
+    [InlineData("#\"open")]
     [InlineData("gizmo \"x\"")]
     [InlineData("button \"unterminated")]
     [InlineData("button >>")]
@@ -180,5 +231,18 @@ public class SelectorBuilderTests
         var target = Button("Save", "1234");
         var tree = Tree(Window("Main", target));
         Assert.Equal("button \"Save\"", SelectorBuilder.Build(target, tree).ToString());
+    }
+
+    [Fact]
+    public void Quotes_an_automation_id_with_spaces_so_the_selector_parses_back()
+    {
+        // WPF gives list content ids like "Item 3"; printed unquoted, the Selector failed to parse.
+        var target = Node(ControlTypeIds.Button, "", "Item 3", UiPatterns.Invoke);
+        var tree = Tree(Window("Main", Button("Save"), target));
+
+        var printed = SelectorBuilder.Build(target, tree).ToString();
+
+        Assert.Equal("#\"Item 3\"", printed);
+        Assert.Same(target, Assert.Single(SelectorMatcher.Match(SelectorParser.Parse(printed), tree)));
     }
 }
