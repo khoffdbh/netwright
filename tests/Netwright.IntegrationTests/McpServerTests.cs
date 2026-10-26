@@ -125,6 +125,7 @@ public sealed class McpServerTests(ITestOutputHelper output) : IAsyncLifetime
         var result = await _client!.CallToolAsync("desktop_screenshot", new Dictionary<string, object?> { ["max_size"] = 640, ["path"] = "run 1/main", ["image"] = false });
         var text = Assert.Single(result.Content.OfType<TextContentBlock>()).Text;
         var outside = await Call("desktop_screenshot", new { path = @"..\outside.png" }, expectError: true);
+        var unc = await Call("desktop_screenshot", new { path = @"\\server\share\shot.png" }, expectError: true);
 
         var saved = Path.Combine(_screenshots, "run 1", "main.png");
         Assert.Empty(result.Content.OfType<ImageContentBlock>());
@@ -134,6 +135,16 @@ public sealed class McpServerTests(ITestOutputHelper output) : IAsyncLifetime
         var width = System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(16, 4));
         Assert.Contains($": {width}x", text, StringComparison.Ordinal);
         Assert.StartsWith("error INVALID_ARGUMENT:", outside, StringComparison.Ordinal);
+        Assert.StartsWith("error INVALID_ARGUMENT:", unc, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Screenshots_without_image_need_a_path()
+    {
+        var error = await Call("desktop_screenshot", new { image = false }, expectError: true);
+
+        Assert.StartsWith("error INVALID_ARGUMENT:", error, StringComparison.Ordinal);
+        Assert.Contains("image=false needs a path", error, StringComparison.Ordinal);
     }
 
     [Fact]
