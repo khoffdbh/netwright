@@ -321,6 +321,9 @@ public sealed partial class SessionTests(ITestOutputHelper output)
         var ex = await Assert.ThrowsAsync<NetwrightException>(() => session.LaunchAsync(new LaunchRequest { Project = project }));
 
         Assert.Equal(ErrorCodes.NotAllowed, ex.Code);
+
+        // Without an SDK the project cannot be evaluated; the Agent learns that the file name stood in.
+        Assert.Contains("could not be evaluated, so its file name was used", ex.Hint, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -338,7 +341,7 @@ public sealed partial class SessionTests(ITestOutputHelper output)
             // A response file next to the project would turn the name into an allowed one; it must not be read.
             File.WriteAllText(Path.Combine(directory, "Directory.Build.rsp"), "-p:AssemblyName=Client.Shell");
 
-            Assert.Equal(Path.Combine(directory, "Acme.Client.Shell.exe"), await ProjectBuilder.ExpectedExecutableAsync("dotnet", project, null, null, CancellationToken.None));
+            Assert.Equal((Path.Combine(directory, "Acme.Client.Shell.exe"), true), await ProjectBuilder.ExpectedExecutableAsync("dotnet", project, null, null, CancellationToken.None));
 
             // Matching only the project file name no longer passes the check, and nothing gets built.
             await using var session = new DesktopSession(new SessionOptions { AllowedApps = ["Client.Shell*"], DotnetExecutable = "dotnet" });

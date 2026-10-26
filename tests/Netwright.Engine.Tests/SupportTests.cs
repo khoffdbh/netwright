@@ -160,7 +160,20 @@ public sealed class ExpectedExecutableTests : IDisposable
 
         var expected = await ProjectBuilder.ExpectedExecutableAsync("does-not-exist.exe", project, null, null, CancellationToken.None);
 
-        Assert.Equal(Path.Combine(_directory, "Client.Shell.exe"), expected);
+        Assert.Equal((Path.Combine(_directory, "Client.Shell.exe"), false), expected);
+    }
+
+    [Fact]
+    public async Task A_cancelled_launch_stops_instead_of_falling_back_or_reporting_a_build_failure()
+    {
+        var project = Path.Combine(_directory, "Client.Shell.csproj");
+        File.WriteAllText(project, "<Project />");
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+
+        // dotnet starts and is killed at once; the cancellation must surface as such.
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => ProjectBuilder.ExpectedExecutableAsync("dotnet", project, null, null, cancelled.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => ProjectBuilder.BuildAsync("dotnet", project, null, null, cancelled.Token));
     }
 
     [Theory]
@@ -201,7 +214,7 @@ public sealed class ExpectedExecutableTests : IDisposable
 
         var expected = await ProjectBuilder.ExpectedExecutableAsync("does-not-exist.exe", project, configuration, framework, CancellationToken.None);
 
-        Assert.Equal(Path.Combine(_directory, "Client.Shell.exe"), expected);
+        Assert.Equal((Path.Combine(_directory, "Client.Shell.exe"), false), expected);
     }
 }
 

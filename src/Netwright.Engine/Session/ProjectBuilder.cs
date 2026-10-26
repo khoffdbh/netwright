@@ -34,7 +34,9 @@ internal static partial class ProjectBuilder
         arguments.AddRange(["-nodeReuse:false", "-p:UseSharedCompilation=false"]);
         arguments.AddRange(["-getProperty:TargetPath", "-getProperty:RunCommand", "-getProperty:RunArguments"]);
 
-        var (exitCode, text) = await RunAsync(dotnet, arguments, fullPath, TimeSpan.FromMinutes(10), cancellationToken).ConfigureAwait(false)
+        var result = await RunAsync(dotnet, arguments, fullPath, TimeSpan.FromMinutes(10), cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        var (exitCode, text) = result
             ?? throw new NetwrightException(ErrorCodes.BuildFailed, $"Building {Path.GetFileName(fullPath)} did not finish within 10 minutes.");
 
         if (exitCode != 0)
@@ -51,13 +53,14 @@ internal static partial class ProjectBuilder
     /// The executable a project is expected to produce, for the allow list check before the build. The
     /// name is the project's evaluated <c>AssemblyName</c> (evaluation only: no restore, no targets), so
     /// a name set in Directory.Build.props or built from properties counts too. When the evaluation
-    /// fails it falls back to the project file name; the build then reports the failure in detail.
+    /// fails it falls back to the project file name (<c>Evaluated</c> is false); the build then reports
+    /// the failure in detail.
     /// </summary>
-    public static async Task<string> ExpectedExecutableAsync(
+    public static async Task<(string Path, bool Evaluated)> ExpectedExecutableAsync(
         string dotnet, string projectPath, string? configuration, string? framework, CancellationToken cancellationToken)
     {
         var fullPath = Path.GetFullPath(projectPath);
-        var fallback = Path.ChangeExtension(fullPath, ".exe");
+        var fallback = (Path.ChangeExtension(fullPath, ".exe"), false);
         if (!File.Exists(fullPath))
         {
             return fallback;
@@ -70,8 +73,9 @@ internal static partial class ProjectBuilder
         try
         {
             var result = await RunAsync(dotnet, arguments, fullPath, TimeSpan.FromMinutes(2), cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
             return result is (0, var output) && AssemblyNameFrom(output) is { } name
-                ? Path.Combine(Path.GetDirectoryName(fullPath)!, name + ".exe")
+                ? (Path.Combine(Path.GetDirectoryName(fullPath)!, name + ".exe"), true)
                 : fallback;
         }
         catch (Exception ex) when (ex is Win32Exception or NetwrightException)
@@ -108,7 +112,10 @@ internal static partial class ProjectBuilder
                 $"Invalid {parameter} '{value}'.",
                 $"Pass a plain name of letters, digits, '.', '_' and '-' that starts with a letter or digit, e.g. {example}.");
 
-    /// <summary>Runs the .NET SDK host in the project's folder; null when it did not finish in time.</summary>
+    /// <summary>
+    /// Runs the .NET SDK host in the project's folder; null when it did not finish in time or the caller
+    /// cancelled, so callers check their token first.
+    /// </summary>
     private static async Task<(int ExitCode, string Output)?> RunAsync(
         string dotnet, IEnumerable<string> arguments, string projectPath, TimeSpan timeout, CancellationToken cancellationToken)
     {

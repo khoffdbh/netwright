@@ -70,7 +70,8 @@ public sealed partial class DesktopSession : IAsyncDisposable
                 // the build, against the executable the project is expected to produce.
                 if (_options.AllowedApps.Count > 0)
                 {
-                    EnsureAllowed(await ProjectBuilder.ExpectedExecutableAsync(_options.DotnetExecutable, request.Project, request.Configuration, request.Framework, cancellationToken).ConfigureAwait(false));
+                    var (expected, evaluated) = await ProjectBuilder.ExpectedExecutableAsync(_options.DotnetExecutable, request.Project, request.Configuration, request.Framework, cancellationToken).ConfigureAwait(false);
+                    EnsureAllowed(expected, evaluated ? null : "The project could not be evaluated, so its file name was used.");
                 }
 
                 (fileName, arguments) = await ProjectBuilder.BuildAsync(_options.DotnetExecutable, request.Project, request.Configuration, request.Framework, cancellationToken).ConfigureAwait(false);
@@ -586,7 +587,7 @@ public sealed partial class DesktopSession : IAsyncDisposable
         }
     }
 
-    private void EnsureAllowed(string executablePath)
+    private void EnsureAllowed(string executablePath, string? note = null)
     {
         if (_options.AllowedApps.Count == 0)
         {
@@ -607,7 +608,7 @@ public sealed partial class DesktopSession : IAsyncDisposable
         throw new NetwrightException(
             ErrorCodes.NotAllowed,
             $"{executablePath} is not in the allowed apps list.",
-            $"The server was started with --allow {string.Join(" --allow ", _options.AllowedApps)}. Ask the User to add this app.");
+            (note is null ? "" : note + " ") + $"The server was started with --allow {string.Join(" --allow ", _options.AllowedApps)}. Ask the User to add this app.");
     }
 
     private static Process FindProcess(AttachRequest request)
