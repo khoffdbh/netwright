@@ -79,7 +79,7 @@ dotnet tool install -g Netwright
 | `--allow <pattern>` (repeatable), or `NETWRIGHT_ALLOW="a*;b.exe"` | allow all | Restrict which executables can be launched or attached. The pattern matches the full path, file name, or name without `.exe`; `*` and `?` are wildcards |
 | `--action-timeout <ms>` | 5000 | How long actions wait for their target to be Actionable |
 | `--settle-timeout <ms>` | 3000 | Upper bound of the wait for the UI to settle after an action |
-| `--screenshot-dir <dir>` | (off) | Lets `desktop_screenshot path=` save PNGs inside this directory, so an Agent can reference them in a report. Also read from `NETWRIGHT_SCREENSHOT_DIR` |
+| `--screenshot-dir <dir>` | (off) | Lets `desktop_screenshot path=` save PNGs inside this directory, so an Agent can reference them in a report. A relative directory is resolved against the server's working directory at startup. Also read from `NETWRIGHT_SCREENSHOT_DIR` |
 | `--max-snapshot-lines <n>` | 300 | Line budget of a filtered Snapshot |
 | `NETWRIGHT_DOTNET` | `dotnet` | SDK host used to build projects for `desktop_app action=launch project=…` |
 

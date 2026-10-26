@@ -33,7 +33,7 @@ internal sealed record ServerOptions(SessionOptions Session, bool ShowHelp, bool
 
         if (environment("NETWRIGHT_SCREENSHOT_DIR") is { Length: > 0 } screenshotDirectory)
         {
-            session = session with { ScreenshotDirectory = screenshotDirectory };
+            session = session with { ScreenshotDirectory = FullPath("NETWRIGHT_SCREENSHOT_DIR", screenshotDirectory) };
         }
 
         if (environment("NETWRIGHT_ALLOW") is { Length: > 0 } fromEnvironment)
@@ -58,7 +58,7 @@ internal sealed record ServerOptions(SessionOptions Session, bool ShowHelp, bool
                     session = session with { Snapshot = session.Snapshot with { MaxLines = PositiveInt(args, ref i) } };
                     break;
                 case "--screenshot-dir":
-                    session = session with { ScreenshotDirectory = Value(args, ref i) };
+                    session = session with { ScreenshotDirectory = FullPath(args[i], Value(args, ref i)) };
                     break;
                 case "--help" or "-h" or "-?":
                     help = true;
@@ -94,5 +94,18 @@ internal sealed record ServerOptions(SessionOptions Session, bool ShowHelp, bool
         }
 
         return value;
+    }
+
+    /// <summary>Resolved once at startup, so a relative directory means the one the server was started in.</summary>
+    private static string FullPath(string name, string text)
+    {
+        try
+        {
+            return Path.GetFullPath(text);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            throw new ArgumentException($"{name} needs a directory path, got '{text}'", ex);
+        }
     }
 }
