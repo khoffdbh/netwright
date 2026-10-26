@@ -67,17 +67,39 @@ public static class ScreenshotFiles
         ArgumentNullException.ThrowIfNull(png);
         var full = Resolve(directory, path);
         RefuseLinks(Root(directory!), full, path);
+        var folder = Path.GetDirectoryName(full)!;
+        var temp = Path.Combine(folder, $"{Path.GetFileName(full)}.{Guid.NewGuid():N}.tmp");
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(full)!);
-            File.WriteAllBytes(full, png);
+            Directory.CreateDirectory(folder);
+            using (var stream = new FileStream(temp, FileMode.CreateNew, FileAccess.Write))
+            {
+                stream.Write(png);
+            }
+
+            // Moving the new file over the old one replaces the directory entry, so a hard link to a file
+            // outside the directory is unlinked instead of written through.
+            File.Move(temp, full, overwrite: true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            DeleteQuietly(temp);
             throw new NetwrightException(ErrorCodes.InvalidArgument, $"Could not save the screenshot to {full}: {ex.Message}", null, ex);
         }
 
         return full;
+    }
+
+    private static void DeleteQuietly(string file)
+    {
+        try
+        {
+            File.Delete(file);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // The save already failed; that error is the one to report.
+        }
     }
 
     private static string Root(string directory) => Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory));

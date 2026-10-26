@@ -67,19 +67,47 @@ public sealed class ScreenshotFilesTests : IDisposable
     }
 
     [Fact]
+    public void Replaces_a_hard_link_without_writing_to_the_file_it_points_to()
+    {
+        var target = Path.Combine(_outside, "other.txt");
+        File.WriteAllBytes(target, [7, 7]);
+        MakeLink("/H", Path.Combine(_directory, "linked.png"), target);
+
+        var saved = ScreenshotFiles.Save(_directory, "linked.png", [1, 2, 3]);
+
+        Assert.Equal([1, 2, 3], File.ReadAllBytes(saved));
+        Assert.Equal([7, 7], File.ReadAllBytes(target));
+    }
+
+    [Fact]
+    public void Leaves_no_temporary_file_behind_when_saving_fails()
+    {
+        var taken = Path.Combine(_directory, "run", "taken.png");
+        Directory.CreateDirectory(taken);
+
+        var error = Assert.Throws<NetwrightException>(() => ScreenshotFiles.Save(_directory, "run/taken.png", [1]));
+
+        Assert.Equal(ErrorCodes.InvalidArgument, error.Code);
+        Assert.Equal([taken], Directory.EnumerateFileSystemEntries(Path.GetDirectoryName(taken)!));
+    }
+
+    [Fact]
     public void Refuses_to_save_through_a_junction_that_leaves_the_directory()
     {
         var link = Path.Combine(_directory, "link");
-        using (var mklink = Process.Start(new ProcessStartInfo("cmd.exe", $"/c mklink /J \"{link}\" \"{_outside}\"") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true })!)
-        {
-            mklink.WaitForExit();
-            Assert.Equal(0, mklink.ExitCode);
-        }
+        MakeLink("/J", link, _outside);
 
         var error = Assert.Throws<NetwrightException>(() => ScreenshotFiles.Save(_directory, "link/escaped.png", [1]));
 
         Assert.Equal(ErrorCodes.InvalidArgument, error.Code);
         Assert.Empty(Directory.EnumerateFileSystemEntries(_outside));
         Directory.Delete(link);
+    }
+
+    private static void MakeLink(string kind, string link, string target)
+    {
+        using var mklink = Process.Start(new ProcessStartInfo("cmd.exe", $"/c mklink {kind} \"{link}\" \"{target}\"") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true })!;
+        mklink.WaitForExit();
+        Assert.Equal(0, mklink.ExitCode);
     }
 }
