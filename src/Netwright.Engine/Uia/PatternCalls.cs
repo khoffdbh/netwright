@@ -65,7 +65,7 @@ internal static class PatternCalls
             var pattern = Get<IUIAutomationRangeValuePattern>(node, PatternIds.RangeValue, "RangeValue");
             return (pattern.CurrentMinimum, pattern.CurrentMaximum);
         }
-        catch (Exception ex) when (ex is NetwrightException or COMException)
+        catch (Exception ex) when (ex is NetwrightException || IsUiaFailure(ex))
         {
             return null;
         }
