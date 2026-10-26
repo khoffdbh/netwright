@@ -2,7 +2,6 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
-using System.Text.Json;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using Netwright.Engine;
@@ -10,20 +9,21 @@ using Netwright.Engine.Session;
 
 namespace Netwright;
 
-/// <summary>Machine-readable summary returned as structured content next to the text the Agent reads.</summary>
-public sealed record ToolOutcome(bool Ok, string? Code = null, bool? Settled = null, int? Changes = null, long? ElapsedMs = null);
-
 /// <summary>
 /// The MCP tools. Every tool answers with compact text for the model; failures come back as
 /// <c>isError</c> results with a code and a hint instead of exceptions. Tool and parameter
 /// descriptions are kept short on purpose: they are sent to the model on every turn.
 /// </summary>
+/// <remarks>
+/// Results carry no <c>structuredContent</c>: clients such as Claude Code pass only the structured
+/// object to the model when it is present, so a small summary object there would hide the text.
+/// </remarks>
 [McpServerToolType]
 public sealed class DesktopTools(DesktopSession session)
 {
     private const string Target = "Ref or Selector";
 
-    [McpServerTool(Name = "desktop_app", Title = "Target App", Destructive = true, OpenWorld = false, UseStructuredContent = true, OutputSchemaType = typeof(ToolOutcome))]
+    [McpServerTool(Name = "desktop_app", Title = "Target App", Destructive = true, OpenWorld = false)]
     [Description("Launch (path to .exe, or project to build a .csproj), attach (process: pid, name or window title), close, or status of the Target App.")]
     public Task<CallToolResult> App(
         [Description("launch|attach|close|status")] string action,
@@ -54,7 +54,7 @@ public sealed class DesktopTools(DesktopSession session)
             }
         });
 
-    [McpServerTool(Name = "desktop_snapshot", Title = "Snapshot", ReadOnly = true, OpenWorld = false, UseStructuredContent = true, OutputSchemaType = typeof(ToolOutcome))]
+    [McpServerTool(Name = "desktop_snapshot", Title = "Snapshot", ReadOnly = true, OpenWorld = false)]
     [Description("The Target App UI as text with Refs ([e12]), filtered to what matters.")]
     public Task<CallToolResult> Snapshot(
         [Description("Only this subtree")] string? root = null,
@@ -74,17 +74,17 @@ public sealed class DesktopTools(DesktopSession session)
             return Reply.Text((await session.SnapshotAsync(root, options, cancellationToken)).Text);
         });
 
-    [McpServerTool(Name = "desktop_find", Title = "Find", ReadOnly = true, OpenWorld = false, UseStructuredContent = true, OutputSchemaType = typeof(ToolOutcome))]
+    [McpServerTool(Name = "desktop_find", Title = "Find", ReadOnly = true, OpenWorld = false)]
     [Description("Elements matching a Selector, with Refs. Selectors: #automationId, role \"name\", role ~\"partial\", a >> b, :nth(2).")]
     public Task<CallToolResult> Find(string selector, CancellationToken cancellationToken = default) =>
         RunAsync(async () => Reply.Text(await session.FindAsync(selector, 30, cancellationToken)));
 
-    [McpServerTool(Name = "desktop_inspect", Title = "Inspect", ReadOnly = true, OpenWorld = false, UseStructuredContent = true, OutputSchemaType = typeof(ToolOutcome))]
+    [McpServerTool(Name = "desktop_inspect", Title = "Inspect", ReadOnly = true, OpenWorld = false)]
     [Description("Properties, patterns and a stable Selector of one element.")]
     public Task<CallToolResult> Inspect([Description(Target)] string target, CancellationToken cancellationToken = default) =>
         RunAsync(async () => Reply.Text(await session.InspectAsync(target, cancellationToken)));
 
-    [McpServerTool(Name = "desktop_click", Title = "Click", Destructive = true, OpenWorld = false, UseStructuredContent = true, OutputSchemaType = typeof(ToolOutcome))]
+    [McpServerTool(Name = "desktop_click", Title = "Click", Destructive = true, OpenWorld = false)]
     [Description("Click an element in the background. Right/double clicks and elements without click support need foreground=true.")]
     public Task<CallToolResult> Click(
         [Description(Target)] string target,
@@ -99,7 +99,7 @@ public sealed class DesktopTools(DesktopSession session)
             Foreground = foreground,
         }, cancellationToken)));
 
-    [McpServerTool(Name = "desktop_type", Title = "Type", Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true, OutputSchemaType = typeof(ToolOutcome))]
+    [McpServerTool(Name = "desktop_type", Title = "Type", Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description("Set the text of an input in the background. foreground=true types real keys (needed for submit).")]
     public Task<CallToolResult> Type(
         [Description(Target)] string target,
@@ -110,7 +110,7 @@ public sealed class DesktopTools(DesktopSession session)
         CancellationToken cancellationToken = default) =>
         RunAsync(async () => Reply.Action(await session.TypeAsync(target, new TypeRequest { Text = text ?? "", Clear = clear, Submit = submit, Foreground = foreground }, cancellationToken)));
 
-    [McpServerTool(Name = "desktop_set_state", Title = "Set state", Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true, OutputSchemaType = typeof(ToolOutcome))]
+    [McpServerTool(Name = "desktop_set_state", Title = "Set state", Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description("Set one of: checked, selected, expanded, value (slider or input), item (select a child of a list, combo, tabs or tree by name).")]
     public Task<CallToolResult> SetState(
         [Description(Target)] string target,
@@ -129,7 +129,7 @@ public sealed class DesktopTools(DesktopSession session)
             Item = item,
         }, cancellationToken)));
 
-    [McpServerTool(Name = "desktop_press_key", Title = "Press key", Destructive = true, OpenWorld = false, UseStructuredContent = true, OutputSchemaType = typeof(ToolOutcome))]
+    [McpServerTool(Name = "desktop_press_key", Title = "Press key", Destructive = true, OpenWorld = false)]
     [Description("Press keys, e.g. Enter, Ctrl+S, \"Tab Tab Enter\". Needs foreground=true.")]
     public Task<CallToolResult> PressKey(
         string keys,
@@ -138,7 +138,7 @@ public sealed class DesktopTools(DesktopSession session)
         CancellationToken cancellationToken = default) =>
         RunAsync(async () => Reply.Action(await session.PressKeyAsync(target, keys, foreground, cancellationToken)));
 
-    [McpServerTool(Name = "desktop_scroll", Title = "Scroll", Destructive = false, OpenWorld = false, UseStructuredContent = true, OutputSchemaType = typeof(ToolOutcome))]
+    [McpServerTool(Name = "desktop_scroll", Title = "Scroll", Destructive = false, OpenWorld = false)]
     [Description("Scroll the target's container by direction or to an edge, or scroll the target into view.")]
     public Task<CallToolResult> Scroll(
         [Description(Target)] string target,
@@ -155,7 +155,7 @@ public sealed class DesktopTools(DesktopSession session)
             IntoView = into_view,
         }, cancellationToken)));
 
-    [McpServerTool(Name = "desktop_window", Title = "Window", Destructive = true, OpenWorld = false, UseStructuredContent = true, OutputSchemaType = typeof(ToolOutcome))]
+    [McpServerTool(Name = "desktop_window", Title = "Window", Destructive = true, OpenWorld = false)]
     [Description("List or change Target App windows (default: main window). activate needs foreground=true.")]
     public Task<CallToolResult> Window(
         [Description("list|activate|minimize|maximize|restore|close")] string action,
@@ -170,7 +170,7 @@ public sealed class DesktopTools(DesktopSession session)
                 : Reply.Action(await session.WindowAsync(target, parsed, foreground, cancellationToken));
         });
 
-    [McpServerTool(Name = "desktop_screenshot", Title = "Screenshot", ReadOnly = true, OpenWorld = false, UseStructuredContent = true, OutputSchemaType = typeof(ToolOutcome))]
+    [McpServerTool(Name = "desktop_screenshot", Title = "Screenshot", ReadOnly = true, OpenWorld = false)]
     [Description("Image of a window or element (default: main window), even when covered by other windows.")]
     public Task<CallToolResult> Screenshot(
         [Description(Target)] string? target = null,
@@ -182,7 +182,7 @@ public sealed class DesktopTools(DesktopSession session)
             return Reply.Image(shot.Summary, shot.Image.Png);
         });
 
-    [McpServerTool(Name = "desktop_wait", Title = "Wait", ReadOnly = true, OpenWorld = false, UseStructuredContent = true, OutputSchemaType = typeof(ToolOutcome))]
+    [McpServerTool(Name = "desktop_wait", Title = "Wait", ReadOnly = true, OpenWorld = false)]
     [Description("Wait for an element state, or for text to appear (or go with state=gone). Reports what changed meanwhile.")]
     public Task<CallToolResult> Wait(
         [Description(Target)] string? target = null,
@@ -198,7 +198,7 @@ public sealed class DesktopTools(DesktopSession session)
             TimeoutMs = Math.Clamp(timeout_ms, 100, 600000),
         }, cancellationToken)));
 
-    [McpServerTool(Name = "desktop_expect", Title = "Expect", ReadOnly = true, OpenWorld = false, UseStructuredContent = true, OutputSchemaType = typeof(ToolOutcome))]
+    [McpServerTool(Name = "desktop_expect", Title = "Expect", ReadOnly = true, OpenWorld = false)]
     [Description("Verify an element, retrying until timeout.")]
     public Task<CallToolResult> Expect(
         [Description(Target)] string target,
@@ -213,7 +213,7 @@ public sealed class DesktopTools(DesktopSession session)
             TimeoutMs = Math.Clamp(timeout_ms, 0, 600000),
         }, cancellationToken)));
 
-    [McpServerTool(Name = "desktop_logs", Title = "App output", ReadOnly = true, OpenWorld = false, UseStructuredContent = true, OutputSchemaType = typeof(ToolOutcome))]
+    [McpServerTool(Name = "desktop_logs", Title = "App output", ReadOnly = true, OpenWorld = false)]
     [Description("New Target App output: stdout/stderr (if launched by Netwright) and debug/trace lines.")]
     public Task<CallToolResult> Logs(
         [Description("stdout|stderr|debug")] string? stream = null,
@@ -251,7 +251,7 @@ public sealed class DesktopTools(DesktopSession session)
             return Task.FromResult(Reply.Text(sb.ToString().TrimEnd()));
         });
 
-    [McpServerTool(Name = "desktop_export_test", Title = "Export test", ReadOnly = true, OpenWorld = false, UseStructuredContent = true, OutputSchemaType = typeof(ToolOutcome))]
+    [McpServerTool(Name = "desktop_export_test", Title = "Export test", ReadOnly = true, OpenWorld = false)]
     [Description("C# test (Netwright.Testing) replaying this session's successful actions and expectations.")]
     public Task<CallToolResult> ExportTest(
         [Description("Test name, e.g. \"checkout succeeds\"")] string name = "recorded flow",
@@ -267,12 +267,6 @@ public sealed class DesktopTools(DesktopSession session)
         });
 
     // ---------------------------------------------------------------- plumbing
-
-    private static readonly JsonSerializerOptions OutcomeJson = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
-    };
 
     private async Task<CallToolResult> RunAsync(Func<Task<Reply>> body)
     {
@@ -306,8 +300,7 @@ public sealed class DesktopTools(DesktopSession session)
         return new CallToolResult
         {
             Content = content,
-            IsError = reply.Outcome.Ok ? null : true,
-            StructuredContent = JsonSerializer.SerializeToElement(reply.Outcome, OutcomeJson),
+            IsError = reply.IsError ? true : null,
         };
     }
 
@@ -399,14 +392,14 @@ public sealed class DesktopTools(DesktopSession session)
         return sb.ToString();
     }
 
-    private sealed record Reply(string Body, ToolOutcome Outcome, byte[]? ImagePng = null)
+    private sealed record Reply(string Body, bool IsError = false, byte[]? ImagePng = null)
     {
-        public static Reply Text(string text) => new(text, new ToolOutcome(true));
+        public static Reply Text(string text) => new(text);
 
-        public static Reply Image(string text, byte[] png) => new(text, new ToolOutcome(true), png);
+        public static Reply Image(string text, byte[] png) => new(text, ImagePng: png);
 
         public static Reply Error(string code, string message, string? hint) =>
-            new($"error {code}: {message}{(hint is null ? "" : Environment.NewLine + "hint: " + hint)}", new ToolOutcome(false, code));
+            new($"error {code}: {message}{(hint is null ? "" : Environment.NewLine + "hint: " + hint)}", IsError: true);
 
         public static Reply Action(ActionOutcome outcome)
         {
@@ -423,7 +416,7 @@ public sealed class DesktopTools(DesktopSession session)
                 sb.AppendLine().Append("note: ").Append(outcome.Note);
             }
 
-            return new(sb.ToString(), new ToolOutcome(true, null, outcome.Settled, outcome.Changes.Changes, outcome.ElapsedMs));
+            return new(sb.ToString());
         }
     }
 }
