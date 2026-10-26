@@ -67,7 +67,9 @@ public sealed partial class DesktopSession : IAsyncDisposable
             if (!string.IsNullOrWhiteSpace(request.Project))
             {
                 // Building runs the project's MSBuild logic, so the allow list must be checked before
-                // the build, against the executable the project is expected to produce.
+                // the build, against the executable the project is expected to produce. Its name comes
+                // from an MSBuild evaluation (evaluation only: props are imported, no targets run), with
+                // response files off and framework and configuration limited to plain names.
                 if (_options.AllowedApps.Count > 0)
                 {
                     var (expected, evaluated) = await ProjectBuilder.ExpectedExecutableAsync(_options.DotnetExecutable, request.Project, request.Configuration, request.Framework, cancellationToken).ConfigureAwait(false);

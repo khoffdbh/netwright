@@ -51,7 +51,7 @@ internal static partial class ProjectBuilder
 
     /// <summary>
     /// The executable a project is expected to produce, for the allow list check before the build. The
-    /// name is the project's evaluated <c>AssemblyName</c> (evaluation only: no restore, no targets), so
+    /// name is the project's evaluated <c>AssemblyName</c> (evaluation only: props are imported, no targets run), so
     /// a name set in Directory.Build.props or built from properties counts too. When the evaluation
     /// fails it falls back to the project file name (<c>Evaluated</c> is false); the build then reports
     /// the failure in detail.
